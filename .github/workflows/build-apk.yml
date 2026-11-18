@@ -21,10 +21,31 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
+
+      - name: Accept Android SDK licenses and install SDK 36.1
+        run: |
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$SDK_DIR/licenses"
+          printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n8933bad161af4178b1185d1a37fbf41ea5269c55\n" > "$SDK_DIR/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd\n504667f4c0de7af1a06de9f4b1727b84351f2910\n" > "$SDK_DIR/licenses/android-sdk-preview-license"
+          SDKMANAGER=""
+          if [ -x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SDKMANAGER="$(find "$SDK_DIR/cmdline-tools" "$SDK_DIR" -name sdkmanager -type f 2>/dev/null | head -n1)"
+          fi
+          echo "Using sdkmanager: ${SDKMANAGER:-none}"
+          if [ -n "$SDKMANAGER" ]; then
+            chmod +x "$SDKMANAGER"
+            (yes || true) | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses >/dev/null 2>&1 || true
+            (yes || true) | "$SDKMANAGER" --sdk_root="$SDK_DIR" "platform-tools" "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0"
+          fi
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -46,9 +67,18 @@ jobs:
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
           fi
+          ls -lh debug.keystore .env app/google-services.json
 
       - name: Build Signed Debug APK
-        run: gradle :app:assembleDebug --no-daemon --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --stacktrace
+        env:
+          GRADLE_OPTS: "-Xmx3g -Dorg.gradle.daemon=false"
+        run: |
+          gradle :app:assembleDebug \
+            --no-daemon \
+            --no-configuration-cache \
+            --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" \
+            -Dorg.gradle.workers.max=2
 
       - name: Copy APK to root output
         run: cp app/build/outputs/apk/debug/app-debug.apk APP-STORE.apk
@@ -72,3 +102,8 @@ jobs:
               --title "APP STORE Latest APK" \
               --notes "Direct APK download generated automatically for Android phones."
           fi
+          {
+            echo "### APP STORE APK Ready"
+            echo "- Artifact: **APP-STORE-APK** (scroll to Artifacts at the bottom of this run)"
+            echo "- Direct APK (Releases): https://github.com/${{ github.repository }}/releases/tag/latest-apk"
+          } >> "$GITHUB_STEP_SUMMARY"
