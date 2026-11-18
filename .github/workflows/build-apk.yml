@@ -2,17 +2,18 @@ name: Build APP STORE APK
 
 on:
   push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
   build-apk:
-    name: Build Signed Debug APK
+    name: Build APK for Android
     runs-on: ubuntu-latest
 
     steps:
@@ -30,25 +31,29 @@ jobs:
         with:
           gradle-version: "9.3.1"
 
-      - name: Restore project debug signing keystore
+      - name: Prepare signing keystore and environment
         run: |
-          if [ -f debug.keystore.base64 ] && [ ! -f debug.keystore ]; then
-            base64 -d debug.keystore.base64 > debug.keystore
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              tr -d '\r\n' < debug.keystore.base64 | base64 -d > debug.keystore
+            else
+              keytool -genkeypair -v -keystore debug.keystore \
+                -storepass android -alias androiddebugkey -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
           fi
-
-      - name: Ensure .env exists for Secrets Gradle Plugin
-        run: |
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
           fi
 
-      - name: Build APP STORE APK
-        run: gradle :app:assembleDebug --no-daemon
+      - name: Build Signed Debug APK
+        run: gradle :app:assembleDebug --no-daemon --no-configuration-cache -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8" --stacktrace
 
-      - name: Prepare direct APK file
+      - name: Copy APK to root output
         run: cp app/build/outputs/apk/debug/app-debug.apk APP-STORE.apk
 
-      - name: Upload APK artifact
+      - name: Upload APK to Actions Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: APP-STORE-APK
