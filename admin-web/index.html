@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APP STORE — Admin Control Center</title>
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Auth Gate -->
+  <div id="login-screen" class="login-wrapper">
+    <div class="login-card">
+      <img src="logo.png" alt="APP STORE Logo" style="width:76px;height:76px;border-radius:18px;margin-bottom:12px;box-shadow:0 8px 24px rgba(0,229,255,0.18);" />
+      <div class="brand-badge">APP STORE</div>
+      <h1>Admin Control Center</h1>
+      <p>Restricted marketplace administration portal. Sign in with an authorized administrator Google account.</p>
+      <div id="login-error" class="error-banner hidden"></div>
+      <button id="google-login-btn" class="btn-primary full-width">Continue with Google</button>
+    </div>
+  </div>
+
+  <!-- Dashboard Shell -->
+  <div id="app-shell" class="shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="logo.png" alt="APP STORE Logo" style="width:36px;height:36px;border-radius:10px;object-fit:cover;" />
+        <div>
+          <strong>APP STORE</strong>
+          <small>Admin Panel</small>
+        </div>
+      </div>
+      <nav class="nav-list" id="nav-list">
+        <button class="nav-item active" data-section="overview">Overview</button>
+        <button class="nav-item" data-section="reviews-center">App Review Center</button>
+        <button class="nav-item" data-section="users">User Management</button>
+        <button class="nav-item" data-section="developers">Developer Management</button>
+        <button class="nav-item" data-section="categories">Categories</button>
+        <button class="nav-item" data-section="featured">Featured Content</button>
+        <button class="nav-item" data-section="review-mod">Review Moderation</button>
+        <button class="nav-item" data-section="reports">App Reports</button>
+        <button class="nav-item" data-section="notifications">Notifications</button>
+        <button class="nav-item" data-section="analytics">Analytics</button>
+        <button class="nav-item" data-section="settings">Platform Settings</button>
+        <button class="nav-item" data-section="audit-logs">Audit Logs</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="admin-email-label" class="muted small"></div>
+        <button id="logout-btn" class="btn-outline full-width">Sign Out</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <h2 id="section-title">Marketplace Overview</h2>
+        <button id="refresh-all-btn" class="btn-outline">Refresh Data</button>
+      </header>
+
+      <div id="toast" class="toast hidden"></div>
+
+      <!-- A. Overview -->
+      <section id="sec-overview" class="panel">
+        <div class="kpi-grid" id="overview-kpis"></div>
+      </section>
+
+      <!-- B. Application Review Center -->
+      <section id="sec-reviews-center" class="panel hidden">
+        <div class="table-wrap" id="app-review-table"></div>
+      </section>
+
+      <!-- C. User Management -->
+      <section id="sec-users" class="panel hidden">
+        <input id="user-search-input" class="input" placeholder="Search users by name or email..." />
+        <div class="table-wrap" id="users-table"></div>
+      </section>
+
+      <!-- D. Developer Management -->
+      <section id="sec-developers" class="panel hidden">
+        <div class="table-wrap" id="developers-table"></div>
+      </section>
+
+      <!-- E. Category Management -->
+      <section id="sec-categories" class="panel hidden">
+        <div class="card">
+          <h3>Add / Seed Categories</h3>
+          <div class="form-row">
+            <input id="cat-name" class="input" placeholder="Category Name" />
+            <input id="cat-name-bn" class="input" placeholder="Bengali Name (বাংলা)" />
+            <select id="cat-group" class="input">
+              <option value="apps">apps</option>
+              <option value="games">games</option>
+            </select>
+            <input id="cat-order" type="number" class="input" placeholder="Order" value="1" />
+            <button id="add-cat-btn" class="btn-primary">Add Category</button>
+            <button id="seed-cats-btn" class="btn-outline">Seed All 24 Defaults</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="categories-table"></div>
+      </section>
+
+      <!-- F. Featured Content -->
+      <section id="sec-featured" class="panel hidden">
+        <div class="table-wrap" id="featured-table"></div>
+      </section>
+
+      <!-- G. Review Moderation -->
+      <section id="sec-review-mod" class="panel hidden">
+        <div class="table-wrap" id="review-mod-table"></div>
+      </section>
+
+      <!-- H. Application Reports -->
+      <section id="sec-reports" class="panel hidden">
+        <div class="table-wrap" id="reports-table"></div>
+      </section>
+
+      <!-- I. Notifications -->
+      <section id="sec-notifications" class="panel hidden">
+        <div class="card">
+          <h3>Send Global Announcement / Notification</h3>
+          <input id="notif-target-uid" class="input" placeholder="Target User UID (leave blank for global announcement)" />
+          <input id="notif-title" class="input" placeholder="Title" />
+          <textarea id="notif-body" class="input" rows="3" placeholder="Message body"></textarea>
+          <button id="send-notif-btn" class="btn-primary">Send Notification</button>
+        </div>
+      </section>
+
+      <!-- J. Analytics -->
+      <section id="sec-analytics" class="panel hidden">
+        <div class="table-wrap" id="analytics-table"></div>
+      </section>
+
+      <!-- K. Platform Settings -->
+      <section id="sec-settings" class="panel hidden">
+        <div class="card">
+          <h3>Global Marketplace Settings</h3>
+          <label>Platform Name</label>
+          <input id="set-platform-name" class="input" value="APP STORE" />
+          <label>Support Email</label>
+          <input id="set-support-email" class="input" value="support@appstore-marketplace.dev" />
+          <label>Max Upload Size (MB)</label>
+          <input id="set-max-mb" type="number" class="input" value="250" />
+          <label><input id="set-maintenance" type="checkbox" /> Maintenance Mode</label>
+          <label><input id="set-monetization" type="checkbox" /> Monetization Enabled (keep off until configured)</label>
+          <button id="save-settings-btn" class="btn-primary">Save Settings</button>
+        </div>
+      </section>
+
+      <!-- L. Audit Logs -->
+      <section id="sec-audit-logs" class="panel hidden">
+        <div class="table-wrap" id="audit-logs-table"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

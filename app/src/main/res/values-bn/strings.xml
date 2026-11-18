@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">APP STORE</string>
+    <string name="tagline">স্বাধীন অ্যান্ড্রয়েড অ্যাপ মার্কেটপ্লেস</string>
+    <string name="nav_home">হোম</string>
+    <string name="nav_games">গেমস</string>
+    <string name="nav_categories">বিভাগসমূহ</string>
+    <string name="nav_publish">প্রকাশ করুন</string>
+    <string name="nav_profile">প্রোফাইল</string>
+    <string name="search_hint">অ্যাপ, গেম, ডেভেলপার খুঁজুন…</string>
+    <string name="continue_with_google">Google দিয়ে চালিয়ে যান</string>
+    <string name="browse_as_guest">মার্কেটপ্লেস ব্রাউজ করুন</string>
+    <string name="sign_in_required_title">Google দিয়ে সাইন ইন করুন</string>
+    <string name="sign_in_required_body">অ্যাপ প্রকাশ করতে, রিভিউ লিখতে, উইশলিস্ট পরিচালনা করতে এবং ডেভেলপার অ্যানালিটিক্স দেখতে সাইন ইন করুন।</string>
+    <string name="publish_your_app">আপনার অ্যাপ প্রকাশ করুন</string>
+    <string name="submit_for_review">অ্যাডমিন রিভিউয়ের জন্য জমা দিন</string>
+    <string name="download">ডাউনলোড</string>
+    <string name="install">ইনস্টল</string>
+    <string name="installed">ইনস্টল করা হয়েছে</string>
+    <string name="update">আপডেট</string>
+    <string name="cancel">বাতিল</string>
+    <string name="retry">আবার চেষ্টা করুন</string>
+    <string name="wishlist">উইশলিস্ট</string>
+    <string name="library">লাইব্রেরি</string>
+    <string name="my_apps">আমার অ্যাপসমূহ</string>
+    <string name="developer_dashboard">ডেভেলপার ড্যাশবোর্ড</string>
+    <string name="notifications">বিজ্ঞপ্তি</string>
+    <string name="settings">সেটিংস</string>
+    <string name="language">ভাষা</string>
+    <string name="theme">থিম</string>
+    <string name="sign_out">সাইন আউট</string>
+    <string name="delete_account">অ্যাকাউন্ট মুছুন</string>
+    <string name="policies">নীতিমালা ও নিরাপত্তা</string>
+    <string name="my_downloads">আমার ডাউনলোড</string>
+    <string name="downloading">ডাউনলোড হচ্ছে</string>
+    <string name="pause">বিরতি</string>
+    <string name="resume">পুনরায় শুরু করুন</string>
+</resources>

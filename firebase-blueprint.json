@@ -1,0 +1,359 @@
+{
+  "entities": {
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Trusted administrator marker document.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "moderator"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["uid", "role", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account document.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "accountType": { "type": "string", "enum": ["user", "developer", "admin"] },
+        "developerStatus": { "type": "string", "enum": ["none", "pending", "verified", "suspended"] },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "banned"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "accountType", "developerStatus", "accountStatus", "createdAt", "lastLoginAt"]
+    },
+    "DeveloperProfile": {
+      "title": "DeveloperProfile",
+      "description": "Developer publisher profile.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "description": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "websiteUrl": { "type": "string" },
+        "privacyPolicyUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "contactEmail", "status", "createdAt", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Marketplace category for apps and games.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nameBn": { "type": "string" },
+        "group": { "type": "string", "enum": ["games", "apps"] },
+        "iconName": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "enabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "group", "iconName", "sortOrder", "enabled", "createdAt"]
+    },
+    "AppListing": {
+      "title": "AppListing",
+      "description": "Marketplace application listing.",
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "appName": { "type": "string" },
+        "packageName": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "categoryGroup": { "type": "string", "enum": ["games", "apps"] },
+        "iconStoragePath": { "type": "string" },
+        "iconUrl": { "type": "string" },
+        "featureGraphicUrl": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "description": { "type": "string" },
+        "whatsNew": { "type": "string" },
+        "developerName": { "type": "string" },
+        "websiteUrl": { "type": "string" },
+        "privacyPolicyUrl": { "type": "string" },
+        "supportContact": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "apkSizeBytes": { "type": "integer" },
+        "minSdk": { "type": "integer" },
+        "targetSdk": { "type": "integer" },
+        "ageRating": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "uploading", "pending", "validating", "under_review", "approved", "rejected", "suspended", "archived"] },
+        "featured": { "type": "boolean" },
+        "editorsChoice": { "type": "boolean" },
+        "trendingScore": { "type": "integer" },
+        "averageRating": { "type": "number" },
+        "totalReviews": { "type": "integer" },
+        "downloadCount": { "type": "integer" },
+        "viewCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appId", "ownerUid", "appName", "packageName", "categoryId", "description", "versionName", "versionCode", "status", "averageRating", "downloadCount", "createdAt", "updatedAt"]
+    },
+    "AppVersion": {
+      "title": "AppVersion",
+      "description": "APK release version metadata and verification status.",
+      "type": "object",
+      "properties": {
+        "versionId": { "type": "string" },
+        "appId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "packageName": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "apkStoragePath": { "type": "string" },
+        "apkDownloadUrl": { "type": "string" },
+        "apkSize": { "type": "integer" },
+        "sha256": { "type": "string" },
+        "signingCertificateFingerprint": { "type": "string" },
+        "minSdk": { "type": "integer" },
+        "targetSdk": { "type": "integer" },
+        "permissions": { "type": "array" },
+        "validationStatus": { "type": "string", "enum": ["pending", "passed", "failed"] },
+        "scanStatus": { "type": "string", "enum": ["pending", "clean", "flagged", "error"] },
+        "approvalStatus": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["versionId", "appId", "ownerUid", "packageName", "versionName", "versionCode", "apkStoragePath", "apkSize", "sha256", "signingCertificateFingerprint", "validationStatus", "scanStatus", "approvalStatus", "createdAt"]
+    },
+    "AppSubmission": {
+      "title": "AppSubmission",
+      "description": "Developer submission audit & review workflow record.",
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string" },
+        "versionId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "appName": { "type": "string" },
+        "packageName": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "categoryId": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "uploading", "pending", "validating", "under_review", "approved", "rejected", "suspended", "archived"] },
+        "rejectionReason": { "type": "string" },
+        "moderationNotes": { "type": "string" },
+        "ageRating": { "type": "string" },
+        "contentDescription": { "type": "string" },
+        "dataCollectionDeclared": { "type": "string" },
+        "copyrightDeclared": { "type": "boolean" },
+        "agreementAccepted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appId", "versionId", "ownerUid", "appName", "packageName", "status", "createdAt", "updatedAt"]
+    },
+    "AppMedia": {
+      "title": "AppMedia",
+      "description": "Screenshots, feature graphics, and preview video references.",
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["screenshot", "video", "feature"] },
+        "url": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "publicMedia": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appId", "ownerUid", "mediaType", "url", "sortOrder", "publicMedia", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "User five-star rating and written review.",
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhotoUrl": { "type": "string" },
+        "rating": { "type": "integer" },
+        "comment": { "type": "string" },
+        "helpfulCount": { "type": "integer" },
+        "developerReply": { "type": "string" },
+        "developerReplyAt": { "type": "string", "format": "date-time" },
+        "moderationStatus": { "type": "string", "enum": ["visible", "flagged", "removed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appId", "userId", "userName", "rating", "comment", "helpfulCount", "moderationStatus", "createdAt", "updatedAt"]
+    },
+    "ReviewVote": {
+      "title": "ReviewVote",
+      "description": "Helpful vote marker per user per review.",
+      "type": "object",
+      "properties": {
+        "reviewId": { "type": "string" },
+        "userId": { "type": "string" },
+        "helpful": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reviewId", "userId", "helpful", "createdAt"]
+    },
+    "WishlistEntry": {
+      "title": "WishlistEntry",
+      "description": "User saved wishlist item.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "appId": { "type": "string" },
+        "appName": { "type": "string" },
+        "developerName": { "type": "string" },
+        "iconUrl": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "averageRating": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "appId", "appName", "createdAt"]
+    },
+    "DownloadRecord": {
+      "title": "DownloadRecord",
+      "description": "User APK download history entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "appId": { "type": "string" },
+        "versionId": { "type": "string" },
+        "appName": { "type": "string" },
+        "packageName": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "iconUrl": { "type": "string" },
+        "sha256": { "type": "string" },
+        "status": { "type": "string", "enum": ["queued", "downloading", "verified", "installed", "failed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "appId", "versionId", "appName", "packageName", "status", "createdAt", "updatedAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Complaint or abuse report for an app or review.",
+      "type": "object",
+      "properties": {
+        "reporterUid": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["app", "review"] },
+        "targetId": { "type": "string" },
+        "reason": { "type": "string", "enum": ["malware", "copyright", "privacy", "fake_app", "fraud", "abusive_review", "other"] },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "resolved", "dismissed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterUid", "targetType", "targetId", "reason", "details", "status", "createdAt", "updatedAt"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "In-app notification center item.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["app_approved", "app_rejected", "update_approved", "new_release", "new_version", "developer_reply", "announcement", "security_event", "welcome"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "targetAppId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "body", "read", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Marketplace-wide announcement.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "active", "createdAt"]
+    },
+    "DeveloperAnalytics": {
+      "title": "DeveloperAnalytics",
+      "description": "Trusted backend-aggregated analytics for a developer's app.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "appId": { "type": "string" },
+        "periodKey": { "type": "string" },
+        "totalDownloads": { "type": "integer" },
+        "totalViews": { "type": "integer" },
+        "dailyDownloads": { "type": "array" },
+        "weeklyDownloads": { "type": "integer" },
+        "monthlyDownloads": { "type": "integer" },
+        "averageRating": { "type": "number" },
+        "totalReviews": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "appId", "totalDownloads", "totalViews", "updatedAt"]
+    },
+    "AdminLog": {
+      "title": "AdminLog",
+      "description": "Immutable audit log of every admin action.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "action": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "result": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "action", "targetType", "targetId", "result", "createdAt"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Global marketplace configuration and monetization flags.",
+      "type": "object",
+      "properties": {
+        "platformName": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "maxUploadSizeMb": { "type": "integer" },
+        "allowedExtensions": { "type": "array" },
+        "maintenanceMode": { "type": "boolean" },
+        "monetizationEnabled": { "type": "boolean" },
+        "privacyPolicyUrl": { "type": "string" },
+        "termsUrl": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["platformName", "maxUploadSizeMb", "maintenanceMode", "monetizationEnabled", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": { "schema": { "$ref": "#/entities/AdminRole" }, "description": "Admin role registry" },
+    "/users/{uid}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "User accounts" },
+    "/developerProfiles/{uid}": { "schema": { "$ref": "#/entities/DeveloperProfile" }, "description": "Developer publisher profiles" },
+    "/categories/{categoryId}": { "schema": { "$ref": "#/entities/Category" }, "description": "Marketplace categories" },
+    "/apps/{appId}": { "schema": { "$ref": "#/entities/AppListing" }, "description": "Public & draft application listings" },
+    "/appVersions/{versionId}": { "schema": { "$ref": "#/entities/AppVersion" }, "description": "Application APK version records" },
+    "/appSubmissions/{submissionId}": { "schema": { "$ref": "#/entities/AppSubmission" }, "description": "App review submissions" },
+    "/appMedia/{mediaId}": { "schema": { "$ref": "#/entities/AppMedia" }, "description": "Application screenshots and graphics" },
+    "/reviews/{reviewId}": { "schema": { "$ref": "#/entities/Review" }, "description": "Application ratings and reviews" },
+    "/reviewVotes/{voteId}": { "schema": { "$ref": "#/entities/ReviewVote" }, "description": "Helpful votes on reviews" },
+    "/wishlists/{wishlistId}": { "schema": { "$ref": "#/entities/WishlistEntry" }, "description": "User saved wishlists" },
+    "/downloads/{downloadId}": { "schema": { "$ref": "#/entities/DownloadRecord" }, "description": "User download history" },
+    "/reports/{reportId}": { "schema": { "$ref": "#/entities/Report" }, "description": "Abuse and security reports" },
+    "/notifications/{notificationId}": { "schema": { "$ref": "#/entities/NotificationItem" }, "description": "User notifications" },
+    "/announcements/{announcementId}": { "schema": { "$ref": "#/entities/Announcement" }, "description": "Global announcements" },
+    "/developerAnalytics/{analyticsId}": { "schema": { "$ref": "#/entities/DeveloperAnalytics" }, "description": "Developer analytics records" },
+    "/adminLogs/{logId}": { "schema": { "$ref": "#/entities/AdminLog" }, "description": "Admin audit logs" },
+    "/platformSettings/{settingId}": { "schema": { "$ref": "#/entities/PlatformSettings" }, "description": "Global platform configuration" }
+  }
+}

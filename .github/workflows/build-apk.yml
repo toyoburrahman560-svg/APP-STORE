@@ -1,0 +1,69 @@
+name: Build APP STORE APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Signed Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+
+      - name: Restore project debug signing keystore
+        run: |
+          if [ -f debug.keystore.base64 ] && [ ! -f debug.keystore ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          fi
+
+      - name: Ensure .env exists for Secrets Gradle Plugin
+        run: |
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+
+      - name: Build APP STORE APK
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Prepare direct APK file
+        run: cp app/build/outputs/apk/debug/app-debug.apk APP-STORE.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: APP-STORE-APK
+          path: APP-STORE.apk
+          retention-days: 30
+
+      - name: Publish direct APK download on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+        run: |
+          if gh release view latest-apk >/dev/null 2>&1; then
+            gh release upload latest-apk APP-STORE.apk --clobber
+          else
+            gh release create latest-apk APP-STORE.apk \
+              --title "APP STORE Latest APK" \
+              --notes "Direct APK download generated automatically for Android phones."
+          fi

@@ -1,0 +1,6 @@
+{
+  "name": "APP STORE",
+  "description": "Independent Android application marketplace with Google Sign-In, APK publishing, downloads, ratings, reviews, developer analytics, and Firebase backend.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
