@@ -67,6 +67,15 @@
 
       <!-- B. Application Review Center -->
       <section id="sec-reviews-center" class="panel hidden">
+        <div class="review-toolbar">
+          <div class="filter-pills" id="review-status-filters">
+            <button class="filter-pill active" data-filter="all">All Apps</button>
+            <button class="filter-pill" data-filter="approved">Published</button>
+            <button class="filter-pill" data-filter="pending">Pending</button>
+            <button class="filter-pill" data-filter="rejected">Rejected / Suspended</button>
+          </div>
+          <div id="published-apk-summary" class="muted small"></div>
+        </div>
         <div class="table-wrap" id="app-review-table"></div>
       </section>
 

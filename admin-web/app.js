@@ -15,6 +15,11 @@ import {
   orderBy,
   limit,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import {
+  getStorage,
+  ref,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
 // Provisioned Firebase Web Config — update apiKey/appId from Firebase Console -> Project Settings -> Web App
 const firebaseConfig = {
@@ -31,6 +36,7 @@ const BOOTSTRAPPED_ADMIN_EMAIL = "monicaeg6wbestewart@gmail.com";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app, DATABASE_ID);
+const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
 const $ = (id) => document.getElementById(id);
@@ -109,13 +115,162 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
 $("refresh-all-btn").addEventListener("click", loadAllAdminData);
 
 let cachedUsers = [];
+let cachedApps = [];
+let cachedSubs = [];
+let cachedVersions = [];
+let activeReviewFilter = "all";
+const resolvedApkLinks = new Map();
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function sanitizeHttpUrl(rawUrl) {
+  const trimmed = String(rawUrl ?? "").trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function formatBytes(bytes) {
+  const num = Number(bytes || 0);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  if (num < 1024 * 1024) return `${(num / 1024).toFixed(0)} KB`;
+  return `${(num / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function buildApkFileName(appData, version) {
+  const base = (appData.packageName || appData.appName || appData.appId || "app")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const ver = (version?.versionName || appData.versionName || appData.versionCode || "1")
+    .toString()
+    .replace(/[^a-zA-Z0-9._-]+/g, "_");
+  return `${base}-v${ver}.apk`;
+}
+
+function findVersionForApp(appData, sub, versions) {
+  if (sub?.versionId) {
+    const subMatch = versions.find((v) => v.versionId === sub.versionId || v.id === sub.versionId);
+    if (subMatch) return subMatch;
+  }
+  const appVersions = versions.filter((v) => v.appId === appData.appId);
+  if (!appVersions.length) return null;
+  if (appData.status === "approved") {
+    const exactApproved = appVersions.find(
+      (v) => v.approvalStatus === "approved" && Number(v.versionCode) === Number(appData.versionCode)
+    );
+    if (exactApproved) return exactApproved;
+    const anyApproved = appVersions
+      .filter((v) => v.approvalStatus === "approved")
+      .sort((a, b) => Number(b.versionCode || 0) - Number(a.versionCode || 0));
+    if (anyApproved.length) return anyApproved[0];
+  }
+  return appVersions.sort((a, b) => Number(b.versionCode || 0) - Number(a.versionCode || 0))[0];
+}
+
+function getStorageCandidates(appData, version) {
+  const candidates = [];
+  const rawUrl = String(version?.apkDownloadUrl || "").trim();
+  const storagePath = String(version?.apkStoragePath || "").trim();
+  if (rawUrl.startsWith("gs://")) {
+    candidates.push(rawUrl);
+  }
+  if (storagePath) {
+    if (appData?.status === "approved") {
+      const fileName = storagePath.split("/").pop() || buildApkFileName(appData, version);
+      const versionId = version.versionId || version.id;
+      if (appData.appId && versionId) {
+        const publicPath = `public/apks/${appData.appId}/${versionId}/${fileName}`;
+        if (publicPath !== storagePath) candidates.push(publicPath);
+      }
+    }
+    candidates.push(storagePath);
+  }
+  return [...new Set(candidates)];
+}
+
+async function resolveApkUrlForVersion(appData, version, { persist = false, forceRefresh = false } = {}) {
+  if (!version) return "";
+  const key = version.versionId || version.id || appData.appId;
+  const cached = resolvedApkLinks.get(key);
+  if (!forceRefresh && cached?.status === "ready" && cached.url) {
+    return cached.url;
+  }
+
+  const directUrl = sanitizeHttpUrl(version.apkDownloadUrl);
+  if (directUrl && !forceRefresh) {
+    resolvedApkLinks.set(key, { url: directUrl, status: "ready", error: "" });
+    return directUrl;
+  }
+
+  const candidates = getStorageCandidates(appData, version);
+  if (!candidates.length) {
+    if (directUrl) {
+      resolvedApkLinks.set(key, { url: directUrl, status: "ready", error: "" });
+      return directUrl;
+    }
+    resolvedApkLinks.set(key, { url: "", status: "missing", error: "" });
+    return "";
+  }
+
+  resolvedApkLinks.set(key, { url: directUrl || "", status: "resolving", error: "" });
+  renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+
+  let lastError = "";
+  for (const candidate of candidates) {
+    try {
+      const storageRef = ref(storage, candidate);
+      const generatedUrl = sanitizeHttpUrl(await getDownloadURL(storageRef));
+      if (generatedUrl) {
+        resolvedApkLinks.set(key, { url: generatedUrl, status: "ready", error: "" });
+        if (persist && version.id && generatedUrl.length <= 1000 && generatedUrl !== version.apkDownloadUrl) {
+          version.apkDownloadUrl = generatedUrl;
+          await updateDoc(doc(db, "appVersions", version.id), { apkDownloadUrl: generatedUrl }).catch(() => {});
+        }
+        renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+        return generatedUrl;
+      }
+    } catch (err) {
+      lastError = err?.code || err?.message || "Failed to generate Firebase Storage URL";
+    }
+  }
+
+  if (directUrl) {
+    resolvedApkLinks.set(key, { url: directUrl, status: "ready", error: "" });
+    renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+    return directUrl;
+  }
+
+  resolvedApkLinks.set(key, { url: "", status: "error", error: lastError });
+  renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+  return "";
+}
+
+document.querySelectorAll("#review-status-filters .filter-pill").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#review-status-filters .filter-pill").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeReviewFilter = btn.dataset.filter || "all";
+    renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+  });
+});
 
 async function loadAllAdminData() {
-  const [usersSnap, devsSnap, appsSnap, subsSnap, catsSnap, reviewsSnap, reportsSnap, logsSnap] = await Promise.all([
+  const [usersSnap, devsSnap, appsSnap, subsSnap, versionsSnap, catsSnap, reviewsSnap, reportsSnap, logsSnap] = await Promise.all([
     getDocs(collection(db, "users")),
     getDocs(collection(db, "developerProfiles")),
     getDocs(collection(db, "apps")),
     getDocs(collection(db, "appSubmissions")),
+    getDocs(collection(db, "appVersions")),
     getDocs(collection(db, "categories")),
     getDocs(collection(db, "reviews")),
     getDocs(collection(db, "reports")),
@@ -124,59 +279,215 @@ async function loadAllAdminData() {
 
   cachedUsers = usersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const devs = devsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  const apps = appsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  const subs = subsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  cachedApps = appsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  cachedSubs = subsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  cachedVersions = versionsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const cats = catsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   const reviews = reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const reports = reportsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const logs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  const totalDownloads = apps.reduce((acc, a) => acc + (a.downloadCount || 0), 0);
+  const totalDownloads = cachedApps.reduce((acc, a) => acc + (a.downloadCount || 0), 0);
   $("overview-kpis").innerHTML = [
     ["Total Users", cachedUsers.length],
     ["Developers", devs.length],
-    ["Total Apps", apps.length],
-    ["Approved Apps", apps.filter((a) => a.status === "approved").length],
-    ["Pending Apps", apps.filter((a) => a.status === "pending").length],
-    ["Rejected Apps", apps.filter((a) => a.status === "rejected").length],
+    ["Total Apps", cachedApps.length],
+    ["Approved Apps", cachedApps.filter((a) => a.status === "approved").length],
+    ["Pending Apps", cachedApps.filter((a) => a.status === "pending").length],
+    ["Rejected Apps", cachedApps.filter((a) => a.status === "rejected").length],
     ["Total Downloads", totalDownloads],
     ["Open Reports", reports.filter((r) => r.status === "open").length],
   ].map(([k, v]) => `<div class="kpi-card"><div class="muted small">${k}</div><div class="val">${v}</div></div>`).join("");
 
-  renderAppReviews(apps, subs);
+  renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+  resolvePublishedAppLinks(cachedApps, cachedSubs, cachedVersions);
   renderUsers(cachedUsers);
   renderDevelopers(devs);
   renderCategories(cats);
-  renderFeatured(apps);
+  renderFeatured(cachedApps);
   renderReviewMod(reviews);
   renderReports(reports);
-  renderAnalytics(apps);
+  renderAnalytics(cachedApps);
   renderAuditLogs(logs);
 }
 
-function renderAppReviews(apps, subs) {
-  const rows = apps.map((app) => {
-    const sub = subs.find((s) => s.appId === app.appId);
+async function resolvePublishedAppLinks(apps, subs, versions) {
+  const published = apps.filter((a) => a.status === "approved");
+  await Promise.allSettled(
+    published.map((appData) => {
+      const sub = subs.find((s) => s.appId === appData.appId);
+      const version = findVersionForApp(appData, sub, versions);
+      if (!version) return Promise.resolve("");
+      const directUrl = sanitizeHttpUrl(version.apkDownloadUrl);
+      if (directUrl) {
+        const key = version.versionId || version.id || appData.appId;
+        resolvedApkLinks.set(key, { url: directUrl, status: "ready", error: "" });
+        return Promise.resolve(directUrl);
+      }
+      return resolveApkUrlForVersion(appData, version, { persist: true });
+    })
+  );
+  renderAppReviews(cachedApps, cachedSubs, cachedVersions);
+}
+
+function renderAppReviews(apps, subs, versions = []) {
+  const filteredApps = apps.filter((appData) => {
+    if (activeReviewFilter === "all") return true;
+    if (activeReviewFilter === "approved") return appData.status === "approved";
+    if (activeReviewFilter === "pending") {
+      return ["pending", "under_review", "validating"].includes(appData.status);
+    }
+    if (activeReviewFilter === "rejected") {
+      return ["rejected", "suspended"].includes(appData.status);
+    }
+    return true;
+  });
+
+  const publishedApps = apps.filter((a) => a.status === "approved");
+  const readyLinkCount = publishedApps.filter((appData) => {
+    const sub = subs.find((s) => s.appId === appData.appId);
+    const version = findVersionForApp(appData, sub, versions);
+    if (!version) return false;
+    const key = version.versionId || version.id || appData.appId;
+    return Boolean(resolvedApkLinks.get(key)?.url || sanitizeHttpUrl(version.apkDownloadUrl));
+  }).length;
+  const summaryEl = $("published-apk-summary");
+  if (summaryEl) {
+    summaryEl.textContent = `${publishedApps.length} published APK${publishedApps.length === 1 ? "" : "s"} • ${readyLinkCount} download link${readyLinkCount === 1 ? "" : "s"} ready`;
+  }
+
+  if (!filteredApps.length) {
+    $("app-review-table").innerHTML = `<div style="padding:24px;text-align:center;" class="muted">No applications match this filter.</div>`;
+    return;
+  }
+
+  const rows = filteredApps.map((appData) => {
+    const sub = subs.find((s) => s.appId === appData.appId);
+    const version = findVersionForApp(appData, sub, versions);
+    const versionKey = version ? (version.versionId || version.id || appData.appId) : appData.appId;
+    const linkState = resolvedApkLinks.get(versionKey);
+    const directUrl = sanitizeHttpUrl(version?.apkDownloadUrl);
+    const resolvedUrl = linkState?.url || directUrl;
+    const apkFileName = buildApkFileName(appData, version);
+    const sizeText = formatBytes(version?.apkSize || appData.apkSizeBytes);
+    const shaShort = version?.sha256 ? `SHA-256: ${String(version.sha256).slice(0, 12)}...` : "";
+    const metaParts = [sizeText, shaShort].filter(Boolean).join(" • ");
+    const safeStatus = escapeHtml(appData.status || "pending");
+    const pillClass = ["approved", "pending", "rejected", "suspended"].includes(appData.status)
+      ? `pill pill-${appData.status}`
+      : "pill";
+
+    let downloadCellHtml = `<span class="muted small">Available after publish</span>`;
+    if (appData.status === "approved") {
+      if (resolvedUrl) {
+        downloadCellHtml = `
+          <div class="apk-link-box">
+            <input class="apk-url-input" type="text" readonly value="${escapeHtml(resolvedUrl)}" onclick="this.select()" aria-label="Published APK Download URL" />
+            <div class="apk-link-actions">
+              <button type="button" class="btn-outline btn-sm" data-url="${escapeHtml(resolvedUrl)}" onclick="window.copyApkUrl(this)">Copy URL</button>
+              <a class="btn-download btn-sm" href="${escapeHtml(resolvedUrl)}" download="${escapeHtml(apkFileName)}" target="_blank" rel="noopener noreferrer">Download APK</a>
+              ${(version?.apkStoragePath || String(version?.apkDownloadUrl || "").startsWith("gs://")) ? `<button type="button" class="btn-outline btn-sm" data-appid="${escapeHtml(appData.appId)}" onclick="window.generateApkLink(this)">Refresh</button>` : ""}
+            </div>
+            ${metaParts ? `<div class="muted small">${escapeHtml(metaParts)}</div>` : ""}
+          </div>
+        `;
+      } else if (linkState?.status === "resolving") {
+        downloadCellHtml = `<span class="muted small">Generating download link...</span>`;
+      } else if (version && (version.apkStoragePath || version.apkDownloadUrl)) {
+        const hint = linkState?.error ? `Retry (${escapeHtml(linkState.error)})` : "Generate Link";
+        downloadCellHtml = `
+          <div class="apk-link-box">
+            <div class="apk-link-actions">
+              <button type="button" class="btn-primary btn-sm" data-appid="${escapeHtml(appData.appId)}" onclick="window.generateApkLink(this)">${hint}</button>
+            </div>
+            ${metaParts ? `<div class="muted small">${escapeHtml(metaParts)}</div>` : ""}
+          </div>
+        `;
+      } else {
+        downloadCellHtml = `<span class="muted small">No APK file or URL attached</span>`;
+      }
+    } else if (version && (directUrl || version.apkStoragePath)) {
+      downloadCellHtml = `<span class="muted small">Staged • link unlocks on publish</span>`;
+    }
+
     return `<tr>
-      <td><strong>${app.appName}</strong><br><span class="muted small">${app.packageName}</span></td>
-      <td>${app.developerName || app.ownerUid}</td>
-      <td>v${app.versionName} (${app.versionCode})</td>
-      <td><span class="pill">${app.status}</span></td>
+      <td><strong>${escapeHtml(appData.appName)}</strong><br><span class="muted small">${escapeHtml(appData.packageName)}</span></td>
+      <td>${escapeHtml(appData.developerName || appData.ownerUid)}</td>
+      <td>v${escapeHtml(appData.versionName)} (${escapeHtml(appData.versionCode)})</td>
+      <td><span class="${pillClass}">${safeStatus}</span></td>
+      <td>${downloadCellHtml}</td>
       <td>
-        <button class="btn-success" onclick="window.adminActApp('${app.appId}', '${sub?.versionId || ""}', '${sub?.id || ""}', 'approved')">Approve</button>
-        <button class="btn-danger" onclick="window.adminRejectApp('${app.appId}', '${sub?.versionId || ""}', '${sub?.id || ""}')">Reject</button>
-        <button class="btn-outline" onclick="window.adminSuspendApp('${app.appId}')">Suspend</button>
+        <div class="action-stack">
+          <button class="btn-success btn-sm" onclick="window.adminActApp('${escapeHtml(appData.appId)}', '${escapeHtml(sub?.versionId || version?.id || "")}', '${escapeHtml(sub?.id || "")}', 'approved')">Approve</button>
+          <button class="btn-danger btn-sm" onclick="window.adminRejectApp('${escapeHtml(appData.appId)}', '${escapeHtml(sub?.versionId || version?.id || "")}', '${escapeHtml(sub?.id || "")}')">Reject</button>
+          <button class="btn-outline btn-sm" onclick="window.adminSuspendApp('${escapeHtml(appData.appId)}')">Suspend</button>
+        </div>
       </td>
     </tr>`;
   }).join("");
-  $("app-review-table").innerHTML = `<table><thead><tr><th>App</th><th>Developer</th><th>Version</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  $("app-review-table").innerHTML = `<table><thead><tr><th>App</th><th>Developer</th><th>Version</th><th>Status</th><th>Published APK Link</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+
+window.copyApkUrl = async (btnEl) => {
+  const url = btnEl?.dataset?.url || "";
+  if (!url) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    const prevText = btnEl.textContent;
+    btnEl.textContent = "Copied!";
+    setTimeout(() => { btnEl.textContent = prevText; }, 1800);
+    showToast("APK download URL copied to clipboard!");
+  } catch {
+    showToast("Could not copy automatically — select the URL field to copy.");
+  }
+};
+
+window.generateApkLink = async (btnEl) => {
+  const appId = btnEl?.dataset?.appid || "";
+  const appData = cachedApps.find((a) => a.appId === appId);
+  if (!appData) return;
+  const sub = cachedSubs.find((s) => s.appId === appId);
+  const version = findVersionForApp(appData, sub, cachedVersions);
+  if (!version) {
+    showToast("No app version metadata found.");
+    return;
+  }
+  const url = await resolveApkUrlForVersion(appData, version, { persist: true, forceRefresh: true });
+  if (url) {
+    showToast("Download link generated!");
+  } else {
+    showToast("Could not resolve APK download URL from Storage.");
+  }
+};
 
 window.adminActApp = async (appId, versionId, subId, status) => {
   const appRef = doc(db, "apps", appId);
   const appSnap = await getDoc(appRef);
   await updateDoc(appRef, { status, updatedAt: serverTimestamp() });
-  if (versionId) await updateDoc(doc(db, "appVersions", versionId), { approvalStatus: status, validationStatus: "passed" });
+  if (versionId) {
+    const versionUpdate = { approvalStatus: status, validationStatus: "passed" };
+    const matchedVersion = cachedVersions.find((v) => v.id === versionId || v.versionId === versionId);
+    const matchedApp = cachedApps.find((a) => a.appId === appId) || (appSnap.exists() ? appSnap.data() : null);
+    if (status === "approved" && matchedVersion && matchedApp && !sanitizeHttpUrl(matchedVersion.apkDownloadUrl)) {
+      const resolvedUrl = await resolveApkUrlForVersion({ ...matchedApp, status: "approved" }, matchedVersion, { persist: false });
+      if (resolvedUrl && resolvedUrl.length <= 1000) {
+        versionUpdate.apkDownloadUrl = resolvedUrl;
+      }
+    }
+    await updateDoc(doc(db, "appVersions", versionId), versionUpdate);
+  }
   if (subId) await updateDoc(doc(db, "appSubmissions", subId), { status, updatedAt: serverTimestamp() });
   if (appSnap.exists()) {
     await addDoc(collection(db, "notifications"), {

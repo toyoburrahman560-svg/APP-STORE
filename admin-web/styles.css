@@ -182,6 +182,83 @@ th { color: var(--muted); font-weight: 600; }
   font-family: "JetBrains Mono", monospace;
   background: var(--surface-2);
 }
+.pill-approved { background: rgba(16, 185, 129, 0.16); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+.pill-pending { background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+.pill-rejected, .pill-suspended { background: rgba(239, 68, 68, 0.16); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35); }
+
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.filter-pill {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-pill:hover { color: var(--text); border-color: var(--primary); }
+.filter-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.apk-link-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+  max-width: 340px;
+}
+.apk-url-input {
+  width: 100%;
+  background: var(--bg);
+  color: #67e8f9;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-family: "JetBrains Mono", monospace;
+}
+.apk-url-input:focus { outline: 1px solid var(--primary); }
+.apk-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+.btn-download {
+  background: linear-gradient(135deg, #0ea5e9, #135bec);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-download:hover { filter: brightness(1.08); }
+.action-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .toast {
   background: var(--primary);
   color: #fff;
@@ -194,4 +271,5 @@ th { color: var(--muted); font-weight: 600; }
   .shell { flex-direction: column; }
   .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
   .nav-list { flex-direction: row; flex-wrap: wrap; }
+  .apk-link-box { min-width: 200px; }
 }

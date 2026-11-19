@@ -11,6 +11,14 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        (request.auth.token.email == 'monicaeg6wbestewart@gmail.com' &&
+         request.auth.token.email_verified == true)
+      );
+    }
+
     // Publicly readable approved app assets (icons, screenshots, feature graphics)
     match /public/apps/{appId}/{allPaths=**} {
       allow read: if true;
@@ -25,7 +33,7 @@ service firebase.storage {
 
     // Private developer staging uploads (APK + media before admin approval)
     match /staging/{uid}/{appId}/apk/{fileName} {
-      allow read: if isOwner(uid);
+      allow read: if isOwner(uid) || isAdmin();
       allow write: if isOwner(uid)
                    && fileName.matches('.*\\.apk$')
                    && request.resource.size > 0
