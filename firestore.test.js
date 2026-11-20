@@ -374,3 +374,233 @@ test("Bootstrapped admin email requires email_verified == true", async () => {
     })
   );
 });
+
+test("Admin Control Center: bootstrapped admin can execute all dashboard snapshot queries and admin writes, non-admin denied", async () => {
+  await seedAdmin();
+  const bootstrappedAdminDb = testEnv.authenticatedContext("bootstrapped_admin_uid", {
+    email: "Monicaeg6wbestewart@gmail.com",
+    email_verified: true,
+  }).firestore();
+  const regularUserDb = testEnv.authenticatedContext(ALICE_UID, {
+    email: "alice@example.com",
+    email_verified: true,
+  }).firestore();
+  const past = new Date(Date.now() - 5000);
+
+  // Seed one record in each collection to exercise rules with existing data too
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await db.collection("developerProfiles").doc(ALICE_UID).set({
+      uid: ALICE_UID,
+      displayName: "Alice Studio",
+      contactEmail: "alice@example.com",
+      status: "pending",
+      createdAt: past,
+      updatedAt: past,
+    });
+    await db.collection("apps").doc("app_pending").set({
+      appId: "app_pending",
+      ownerUid: ALICE_UID,
+      appName: "Pending App",
+      packageName: "com.alice.pending",
+      categoryId: "tools",
+      description: "A pending app awaiting review in Admin Control Center.",
+      versionName: "1.0.0",
+      versionCode: 1,
+      status: "pending",
+      averageRating: 0,
+      downloadCount: 0,
+      createdAt: past,
+      updatedAt: past,
+    });
+    await db.collection("appVersions").doc("ver_pending").set({
+      versionId: "ver_pending",
+      appId: "app_pending",
+      ownerUid: ALICE_UID,
+      packageName: "com.alice.pending",
+      versionName: "1.0.0",
+      versionCode: 1,
+      apkStoragePath: "staging/alice_dev_001/app_pending/apk/app.apk",
+      apkSize: 1024,
+      sha256: "abc",
+      signingCertificateFingerprint: "def",
+      validationStatus: "pending",
+      scanStatus: "pending",
+      approvalStatus: "pending",
+      createdAt: past,
+    });
+    await db.collection("appSubmissions").doc("sub_pending").set({
+      appId: "app_pending",
+      versionId: "ver_pending",
+      ownerUid: ALICE_UID,
+      appName: "Pending App",
+      packageName: "com.alice.pending",
+      status: "pending",
+      createdAt: past,
+      updatedAt: past,
+    });
+    await db.collection("reports").doc("rep_1").set({
+      reporterUid: BOB_UID,
+      targetType: "app",
+      targetId: "app_pending",
+      reason: "other",
+      details: "Test report details",
+      status: "open",
+      createdAt: past,
+      updatedAt: past,
+    });
+  });
+
+  // Exact 10 queries from AdminRepository.loadDashboardSnapshot()
+  await assertSucceeds(bootstrappedAdminDb.collection("apps").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("appVersions").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("appSubmissions").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("categories").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("users").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("developerProfiles").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("reports").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("reviews").get());
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("adminLogs").orderBy("createdAt", "desc").limit(30).get()
+  );
+  await assertSucceeds(bootstrappedAdminDb.collection("platformSettings").doc("global").get());
+
+  // Admin writes: adminLogs create, platformSettings set(merge), announcements create, approve batch
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("adminLogs").doc("log_1").set({
+      adminUid: "bootstrapped_admin_uid",
+      action: "APPROVE_APP",
+      targetType: "apps",
+      targetId: "app_pending",
+      result: "success",
+      notes: "",
+      createdAt: past,
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("platformSettings").doc("global").set(
+      {
+        platformName: "APP STORE",
+        supportEmail: "monicaeg6wbestewart@gmail.com",
+        maxUploadSizeMb: 250,
+        allowedExtensions: ["apk"],
+        maintenanceMode: false,
+        monetizationEnabled: false,
+        updatedAt: past,
+      },
+      { merge: true }
+    )
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("announcements").doc("ann_1").set({
+      title: "Welcome",
+      body: "Store is live!",
+      active: true,
+      createdAt: past,
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("apps").doc("app_pending").update({
+      status: "approved",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("appVersions").doc("ver_pending").update({
+      approvalStatus: "approved",
+      validationStatus: "passed",
+      apkDownloadUrl: "https://firebasestorage.googleapis.com/v0/b/test/o/app.apk",
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("appSubmissions").doc("sub_pending").update({
+      status: "approved",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("reports").doc("rep_1").update({
+      status: "resolved",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+
+  // Regular user must NOT be able to list admin collections
+  await assertFails(regularUserDb.collection("users").get());
+  await assertFails(regularUserDb.collection("developerProfiles").get());
+  await assertFails(regularUserDb.collection("adminLogs").orderBy("createdAt", "desc").limit(30).get());
+  await assertFails(regularUserDb.collection("reports").get());
+  await assertFails(regularUserDb.collection("appSubmissions").get());
+});
+
+test("Admin Control Center: all dashboard snapshot reads succeed on empty collections and remaining admin mutations succeed", async () => {
+  const bootstrappedAdminDb = testEnv.authenticatedContext("bootstrapped_admin_uid", {
+    email: "monicaeg6wbestewart@gmail.com",
+    email_verified: true,
+  }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID, {
+    email: "alice@example.com",
+    email_verified: true,
+  }).firestore();
+  const past = new Date(Date.now() - 5000);
+
+  // All 10 queries on completely empty database
+  await assertSucceeds(bootstrappedAdminDb.collection("apps").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("appVersions").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("appSubmissions").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("categories").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("users").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("developerProfiles").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("reports").get());
+  await assertSucceeds(bootstrappedAdminDb.collection("reviews").get());
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("adminLogs").orderBy("createdAt", "desc").limit(30).get()
+  );
+  await assertSucceeds(bootstrappedAdminDb.collection("platformSettings").doc("global").get());
+
+  // Admin can send notification + update developer status + update user status
+  await aliceDb.collection("users").doc(ALICE_UID).set({
+    uid: ALICE_UID,
+    displayName: "Alice",
+    email: "alice@example.com",
+    accountType: "user",
+    developerStatus: "none",
+    accountStatus: "active",
+    createdAt: past,
+    lastLoginAt: past,
+  });
+  await aliceDb.collection("developerProfiles").doc(ALICE_UID).set({
+    uid: ALICE_UID,
+    displayName: "Alice Dev",
+    contactEmail: "alice@example.com",
+    status: "pending",
+    createdAt: past,
+    updatedAt: past,
+  });
+
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("developerProfiles").doc(ALICE_UID).update({
+      status: "verified",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("users").doc(ALICE_UID).update({
+      developerStatus: "verified",
+      updatedAt: new Date(Date.now() - 1000),
+    })
+  );
+  await assertSucceeds(
+    bootstrappedAdminDb.collection("notifications").doc("notif_1").set({
+      userId: ALICE_UID,
+      type: "app_approved",
+      title: "Approved",
+      body: "Your application is live.",
+      targetAppId: "app_1",
+      read: false,
+      createdAt: past,
+    })
+  );
+});
+
+

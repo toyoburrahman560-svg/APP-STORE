@@ -287,6 +287,33 @@ data class PlatformSettings(
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 
+@Keep
+@IgnoreExtraProperties
+data class AppReport(
+    @DocumentId val id: String = "",
+    val reporterUid: String = "",
+    val targetType: String = "app",
+    val targetId: String = "",
+    val reason: String = "other",
+    val details: String = "",
+    val status: String = "open",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class AdminLog(
+    @DocumentId val id: String = "",
+    val adminUid: String = "",
+    val action: String = "",
+    val targetType: String = "",
+    val targetId: String = "",
+    val result: String = "success",
+    val notes: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+)
+
 data class ParsedApkMetadata(
     val fileName: String,
     val localCachePath: String,

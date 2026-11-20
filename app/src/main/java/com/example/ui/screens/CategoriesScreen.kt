@@ -54,6 +54,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.example.data.download.ActiveDownloadState
+import com.example.data.download.InstalledPackageStatus
 import com.example.data.model.AppListing
 import com.example.data.model.LanguagePreference
 import com.example.data.model.MarketplaceCategory
@@ -79,7 +81,10 @@ fun CategoriesScreen(
     onDownloadsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onAvatarClick: () -> Unit,
-    onAppClick: (String) -> Unit
+    onAppClick: (String) -> Unit,
+    downloadsMap: Map<String, ActiveDownloadState> = emptyMap(),
+    getInstalledStatus: (String) -> InstalledPackageStatus = { InstalledPackageStatus(false) },
+    onInstallClick: (AppListing) -> Unit = {}
 ) {
     val gameCats = categories.filter { it.group.equals("games", ignoreCase = true) }
     val appCats = categories.filter { !it.group.equals("games", ignoreCase = true) }
@@ -151,7 +156,10 @@ fun CategoriesScreen(
                     AppListRowCard(
                         app = app,
                         onClick = { onAppClick(app.appId) },
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        downloadState = downloadsMap[app.appId],
+                        installedStatus = getInstalledStatus(app.packageName),
+                        onInstallClick = { onInstallClick(app) }
                     )
                 }
             }

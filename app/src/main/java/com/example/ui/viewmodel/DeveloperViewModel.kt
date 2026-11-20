@@ -60,6 +60,8 @@ class DeveloperViewModel(
     private val _submitting = MutableStateFlow(false)
     val submitting: StateFlow<Boolean> = _submitting.asStateFlow()
 
+    val uploadProgress: StateFlow<Float?> = publishRepository.uploadProgress
+
     private val _actionMessage = MutableStateFlow<String?>(null)
     val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
 

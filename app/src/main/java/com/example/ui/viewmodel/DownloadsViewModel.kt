@@ -265,4 +265,69 @@ class DownloadsViewModel(
             downloadService.startDownload(app, latestVersion)
         }
     }
+
+    fun launchInstalledApp(packageName: String, appName: String) {
+        if (!downloadService.launchAppByPackage(packageName)) {
+            _feedbackMessage.value = "$appName is installed (no launchable Activity)."
+        }
+    }
+
+    fun installOrDownloadFromCatalog(
+        app: AppListing,
+        onRequireInstallPermission: () -> Unit
+    ) {
+        val currentState = downloadsMap.value[app.appId]
+        val installed = downloadService.getInstalledStatus(app.packageName)
+        val updateAvailable = installed.isInstalled && installed.installedVersionCode < app.versionCode
+
+        if (installed.isInstalled && !updateAvailable) {
+            launchInstalledApp(app.packageName, app.appName)
+            return
+        }
+
+        if (currentState?.phase == DownloadPhase.DOWNLOADING || currentState?.phase == DownloadPhase.QUEUED) {
+            pause(app.appId)
+            return
+        }
+        if (currentState?.phase == DownloadPhase.PAUSED) {
+            resume(app.appId)
+            return
+        }
+
+        val localApk = currentState?.localFilePath?.let { File(it) }?.takeIf { it.exists() }
+            ?: downloadService.getLocalDownloadedApk(app.packageName, app.versionCode)
+        if ((currentState?.phase == DownloadPhase.READY_TO_INSTALL || localApk != null) && localApk != null) {
+            if (!canInstallPackages()) {
+                onRequireInstallPermission()
+                return
+            }
+            val readyState = currentState ?: ActiveDownloadState(
+                appId = app.appId,
+                versionId = "${app.appId}_v${app.versionCode}",
+                appName = app.appName,
+                packageName = app.packageName,
+                versionName = app.versionName,
+                versionCode = app.versionCode,
+                iconUrl = app.iconUrl,
+                phase = DownloadPhase.READY_TO_INSTALL,
+                bytesDownloaded = localApk.length(),
+                totalBytes = localApk.length(),
+                progressPercent = 100,
+                localFilePath = localApk.absolutePath
+            )
+            installFromState(readyState)
+            return
+        }
+
+        viewModelScope.launch {
+            val latestVersion: AppVersion? = marketplaceRepository.observeApprovedVersions(app.appId)
+                .firstOrNull()
+                ?.firstOrNull()
+            downloadService.startDownload(app, latestVersion) { state ->
+                if (state.phase == DownloadPhase.FAILED && !state.errorMessage.isNullOrBlank()) {
+                    _feedbackMessage.value = state.errorMessage
+                }
+            }
+        }
+    }
 }

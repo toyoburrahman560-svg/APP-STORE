@@ -32,8 +32,9 @@ service cloud.firestore {
     function isBootstrappedAdmin() {
       return isSignedIn() &&
         'email' in request.auth.token &&
+        request.auth.token.email is string &&
         'email_verified' in request.auth.token &&
-        request.auth.token.email == 'monicaeg6wbestewart@gmail.com' &&
+        request.auth.token.email.lower() == 'monicaeg6wbestewart@gmail.com' &&
         request.auth.token.email_verified == true;
     }
 
@@ -306,15 +307,15 @@ service cloud.firestore {
     }
 
     match /categories/{categoryId} {
-      allow get: if isValidId(categoryId) && (existing().enabled == true || isAdmin());
-      allow list: if existing().enabled == true || isAdmin();
+      allow get: if isValidId(categoryId) && (isAdmin() || existing().enabled == true);
+      allow list: if isAdmin() || existing().enabled == true;
       allow create, update: if isValidId(categoryId) && isAdmin() && isValidCategory(incoming());
       allow delete: if isValidId(categoryId) && isAdmin();
     }
 
     match /apps/{appId} {
-      allow get: if isValidId(appId) && (existing().status == 'approved' || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin())));
-      allow list: if existing().status == 'approved' || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin()));
+      allow get: if isValidId(appId) && (isAdmin() || existing().status == 'approved' || (isSignedIn() && existing().ownerUid == request.auth.uid));
+      allow list: if isAdmin() || existing().status == 'approved' || (isSignedIn() && existing().ownerUid == request.auth.uid);
       allow create: if isValidId(appId) && isSignedIn() &&
                        incoming().appId == appId &&
                        incoming().ownerUid == request.auth.uid &&
@@ -354,8 +355,8 @@ service cloud.firestore {
     }
 
     match /appVersions/{versionId} {
-      allow get: if isValidId(versionId) && (existing().approvalStatus == 'approved' || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin())));
-      allow list: if existing().approvalStatus == 'approved' || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin()));
+      allow get: if isValidId(versionId) && (isAdmin() || existing().approvalStatus == 'approved' || (isSignedIn() && existing().ownerUid == request.auth.uid));
+      allow list: if isAdmin() || existing().approvalStatus == 'approved' || (isSignedIn() && existing().ownerUid == request.auth.uid);
       allow create: if isValidId(versionId) && isSignedIn() &&
                        incoming().versionId == versionId &&
                        incoming().ownerUid == request.auth.uid &&
@@ -368,8 +369,8 @@ service cloud.firestore {
     }
 
     match /appSubmissions/{submissionId} {
-      allow get: if isValidId(submissionId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow get: if isValidId(submissionId) && (isAdmin() || (isSignedIn() && existing().ownerUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().ownerUid == request.auth.uid);
       allow create: if isValidId(submissionId) && isSignedIn() &&
                        incoming().ownerUid == request.auth.uid &&
                        incoming().status in ['draft', 'uploading', 'pending'] &&
@@ -393,8 +394,8 @@ service cloud.firestore {
     }
 
     match /appMedia/{mediaId} {
-      allow get: if isValidId(mediaId) && (existing().publicMedia == true || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin())));
-      allow list: if existing().publicMedia == true || (isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin()));
+      allow get: if isValidId(mediaId) && (isAdmin() || existing().publicMedia == true || (isSignedIn() && existing().ownerUid == request.auth.uid));
+      allow list: if isAdmin() || existing().publicMedia == true || (isSignedIn() && existing().ownerUid == request.auth.uid);
       allow create: if isValidId(mediaId) && isSignedIn() &&
                        incoming().ownerUid == request.auth.uid &&
                        incoming().publicMedia == false &&
@@ -407,8 +408,8 @@ service cloud.firestore {
     }
 
     match /reviews/{reviewId} {
-      allow get: if isValidId(reviewId) && ((isSignedIn() && resource == null) || existing().moderationStatus == 'visible' || (isSignedIn() && (existing().userId == request.auth.uid || isAdmin())));
-      allow list: if existing().moderationStatus == 'visible' || (isSignedIn() && (existing().userId == request.auth.uid || isAdmin()));
+      allow get: if isValidId(reviewId) && (isAdmin() || (isSignedIn() && resource == null) || existing().moderationStatus == 'visible' || (isSignedIn() && existing().userId == request.auth.uid));
+      allow list: if isAdmin() || existing().moderationStatus == 'visible' || (isSignedIn() && existing().userId == request.auth.uid);
       allow create: if isValidId(reviewId) && isSignedIn() &&
                        incoming().userId == request.auth.uid &&
                        reviewId == (incoming().appId + '_' + request.auth.uid) &&
@@ -459,8 +460,8 @@ service cloud.firestore {
     }
 
     match /downloads/{downloadId} {
-      allow get: if isValidId(downloadId) && isSignedIn() && (resource == null || existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isValidId(downloadId) && (isAdmin() || (isSignedIn() && (resource == null || existing().userId == request.auth.uid)));
+      allow list: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
       allow create: if isValidId(downloadId) && isSignedIn() &&
                        incoming().userId == request.auth.uid &&
                        isValidDownload(incoming());
@@ -480,8 +481,8 @@ service cloud.firestore {
     }
 
     match /reports/{reportId} {
-      allow get: if isValidId(reportId) && isSignedIn() && (existing().reporterUid == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().reporterUid == request.auth.uid || isAdmin());
+      allow get: if isValidId(reportId) && (isAdmin() || (isSignedIn() && existing().reporterUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().reporterUid == request.auth.uid);
       allow create: if isValidId(reportId) && isSignedIn() &&
                        incoming().reporterUid == request.auth.uid &&
                        incoming().status == 'open' &&
@@ -490,8 +491,8 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow get: if isValidId(notificationId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isValidId(notificationId) && (isAdmin() || (isSignedIn() && existing().userId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
       allow create: if isValidId(notificationId) && isSignedIn() && isValidNotification(incoming()) && (
         isAdmin() ||
         (incoming().userId == request.auth.uid && incoming().type == 'welcome' && incoming().read == false)
@@ -500,29 +501,32 @@ service cloud.firestore {
         isAdmin() ||
         (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['read']))
       );
-      allow delete: if isValidId(notificationId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(notificationId) && (isAdmin() || (isSignedIn() && existing().userId == request.auth.uid));
     }
 
     match /announcements/{announcementId} {
-      allow get: if isValidId(announcementId) && (existing().active == true || isAdmin());
-      allow list: if existing().active == true || isAdmin();
+      allow get: if isValidId(announcementId) && (isAdmin() || existing().active == true);
+      allow list: if isAdmin() || existing().active == true;
       allow write: if isValidId(announcementId) && isAdmin();
     }
 
     match /developerAnalytics/{analyticsId} {
-      allow get: if isValidId(analyticsId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow get: if isValidId(analyticsId) && (isAdmin() || (isSignedIn() && existing().ownerUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().ownerUid == request.auth.uid);
       allow write: if isValidId(analyticsId) && isAdmin();
     }
 
     match /adminLogs/{logId} {
-      allow get, list, create: if isValidId(logId) && isAdmin();
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId) && isAdmin();
       allow update, delete: if false;
     }
 
     match /platformSettings/{settingId} {
       allow get: if isValidId(settingId);
-      allow list, write: if isValidId(settingId) && isAdmin();
+      allow list: if isAdmin();
+      allow write: if isValidId(settingId) && isAdmin();
     }
   }
 }

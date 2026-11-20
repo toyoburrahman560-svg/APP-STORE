@@ -414,10 +414,16 @@ class ApkDownloadService(private val context: Context) {
                     throw IllegalStateException("No internet connection. Connect to Wi-Fi or mobile data and tap Retry.")
                 }
 
-                // Resolve secure Firebase Storage download URL if needed
-                val resolvedUrl = resolveApkDownloadUrl(rawDownloadUrl, storagePath)
+                // Resolve secure download URL or Storage URL for already-approved release
+                val resolvedUrl = resolveApkDownloadUrl(
+                    appId = appId,
+                    versionId = versionId,
+                    packageName = packageName,
+                    rawUrl = rawDownloadUrl,
+                    storagePath = storagePath
+                )
                 if (resolvedUrl.isBlank() || (!resolvedUrl.startsWith("https://") && !resolvedUrl.startsWith("http://"))) {
-                    throw IllegalStateException("Secure APK download location is not configured yet for this release.")
+                    throw IllegalStateException("No downloadable APK link or file is attached to this app yet. Use Admin Control Center → App Review to upload the APK or set a download URL.")
                 }
 
                 // Check available disk space before writing
@@ -434,7 +440,7 @@ class ApkDownloadService(private val context: Context) {
                 if (existingBytes > 0L) {
                     reqBuilder.header("Range", "bytes=$existingBytes-")
                 }
-                if (resolvedUrl.contains("firebasestorage.googleapis.com")) {
+                if (resolvedUrl.contains("firebasestorage.googleapis.com") && !resolvedUrl.contains("token=")) {
                     val token = runCatching {
                         Firebase.auth.currentUser?.getIdToken(false)?.await()?.token
                     }.getOrNull()
@@ -448,13 +454,17 @@ class ApkDownloadService(private val context: Context) {
                         // Server indicates local .part already reached end of file; proceed to verify
                     } else if (!response.isSuccessful && response.code != 206) {
                         val msg = when (response.code) {
-                            401, 403 -> "Access denied by Firebase Storage. Please sign in with Google and try again."
-                            404 -> "APK file was not found in Firebase Storage."
+                            401, 403 -> "Access denied by download server. Sign in or update the APK URL."
+                            404 -> "APK file was not found at the configured download link."
                             else -> "Download server returned HTTP ${response.code}."
                         }
                         throw IllegalStateException(msg)
                     } else {
                         val body = response.body ?: throw IllegalStateException("Empty download response from server.")
+                        val mediaType = body.contentType()?.toString().orEmpty()
+                        if (mediaType.contains("text/html", ignoreCase = true)) {
+                            throw IllegalStateException("Download link returned a webpage instead of an .apk file. Please provide a direct APK download URL.")
+                        }
                         val append = response.code == 206 && existingBytes > 0L
                         val contentLength = body.contentLength()
                         val totalBytes = when {
@@ -619,8 +629,14 @@ class ApkDownloadService(private val context: Context) {
         activeJobs[appId] = job
     }
 
-    private suspend fun resolveApkDownloadUrl(rawUrl: String, storagePath: String): String {
-        val trimmedUrl = rawUrl.trim()
+    private suspend fun resolveApkDownloadUrl(
+        appId: String,
+        versionId: String,
+        packageName: String,
+        rawUrl: String,
+        storagePath: String
+    ): String {
+        val trimmedUrl = normalizeDirectUrl(rawUrl.trim())
         val trimmedPath = storagePath.trim()
 
         if (trimmedUrl.startsWith("https://") || trimmedUrl.startsWith("http://")) {
@@ -630,17 +646,43 @@ class ApkDownloadService(private val context: Context) {
             return Firebase.storage.getReferenceFromUrl(trimmedUrl).downloadUrl.await().toString()
         }
         if (trimmedPath.isNotBlank()) {
-            if (trimmedPath.startsWith("staging/")) {
-                throw SecurityException("APK is still in private developer staging and cannot be downloaded publicly.")
+            val fileName = trimmedPath.substringAfterLast('/').ifBlank { "${packageName}.apk" }
+            val candidates = buildList {
+                if (appId.isNotBlank() && versionId.isNotBlank()) {
+                    add("public/apks/$appId/$versionId/$fileName")
+                }
+                add(trimmedPath)
+            }.distinct()
+
+            var lastError: Exception? = null
+            for (candidate in candidates) {
+                try {
+                    val ref = if (candidate.startsWith("gs://")) {
+                        Firebase.storage.getReferenceFromUrl(candidate)
+                    } else {
+                        Firebase.storage.reference.child(candidate)
+                    }
+                    val url = ref.downloadUrl.await().toString()
+                    if (url.startsWith("https://") || url.startsWith("http://")) return url
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = e
+                }
             }
-            val ref = if (trimmedPath.startsWith("gs://")) {
-                Firebase.storage.getReferenceFromUrl(trimmedPath)
-            } else {
-                Firebase.storage.reference.child(trimmedPath)
-            }
-            return ref.downloadUrl.await().toString()
+            if (lastError != null) throw lastError
         }
         return ""
+    }
+
+    private fun normalizeDirectUrl(url: String): String {
+        if (url.isBlank()) return ""
+        val driveMatch = Regex("https?://drive\\.google\\.com/file/d/([a-zA-Z0-9_-]+)").find(url)
+            ?: Regex("https?://drive\\.google\\.com/open\\?id=([a-zA-Z0-9_-]+)").find(url)
+        if (driveMatch != null) {
+            return "https://drive.google.com/uc?export=download&confirm=t&id=${driveMatch.groupValues[1]}"
+        }
+        return url
     }
 
     private fun verifyApkFile(
@@ -768,6 +810,14 @@ class ApkDownloadService(private val context: Context) {
         return file.delete()
     }
 
+    fun launchAppByPackage(packageName: String): Boolean {
+        if (packageName.isBlank()) return false
+        val intent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        return true
+    }
+
     private fun computeSha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         FileInputStream(file).use { input ->
@@ -808,9 +858,9 @@ class ApkDownloadService(private val context: Context) {
 
     private fun mapDownloadException(e: Exception): String = when (e) {
         is StorageException -> when (e.errorCode) {
-            StorageException.ERROR_OBJECT_NOT_FOUND -> "APK file not found on Firebase Storage."
+            StorageException.ERROR_OBJECT_NOT_FOUND -> "No APK file found for this release yet. Upload the APK or set a download URL in Admin Control Center."
             StorageException.ERROR_NOT_AUTHENTICATED,
-            StorageException.ERROR_NOT_AUTHORIZED -> "Sign in with Google to download this release from Firebase Storage."
+            StorageException.ERROR_NOT_AUTHORIZED -> "Sign in with Google to download this APK, or set a public HTTPS download link in Admin Control Center."
             else -> e.localizedMessage ?: "Firebase Storage download failed."
         }
         is UnknownHostException -> "Unable to reach download server. Check your internet connection."

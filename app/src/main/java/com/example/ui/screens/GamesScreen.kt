@@ -19,6 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.data.download.ActiveDownloadState
+import com.example.data.download.InstalledPackageStatus
+import com.example.data.model.AppListing
 import com.example.data.model.MarketplaceCategory
 import com.example.data.model.UiState
 import com.example.ui.components.AppHorizontalCard
@@ -40,7 +43,10 @@ fun GamesScreen(
     onDownloadsClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onAvatarClick: () -> Unit,
-    onAppClick: (String) -> Unit
+    onAppClick: (String) -> Unit,
+    downloadsMap: Map<String, ActiveDownloadState> = emptyMap(),
+    getInstalledStatus: (String) -> InstalledPackageStatus = { InstalledPackageStatus(false) },
+    onInstallClick: (AppListing) -> Unit = {}
 ) {
     val gameCategories = remember(categories) {
         categories.filter { it.group.equals("games", ignoreCase = true) }
@@ -137,7 +143,13 @@ fun GamesScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(filtered.sortedByDescending { it.trendingScore + it.downloadCount }.take(8), key = { "g_t_${it.appId}" }) { game ->
-                                AppHorizontalCard(app = game, onClick = { onAppClick(game.appId) })
+                                AppHorizontalCard(
+                                    app = game,
+                                    onClick = { onAppClick(game.appId) },
+                                    downloadState = downloadsMap[game.appId],
+                                    installedStatus = getInstalledStatus(game.packageName),
+                                    onInstallClick = { onInstallClick(game) }
+                                )
                             }
                         }
                     }
@@ -153,7 +165,10 @@ fun GamesScreen(
                             app = game,
                             rank = idx + 1,
                             onClick = { onAppClick(game.appId) },
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            downloadState = downloadsMap[game.appId],
+                            installedStatus = getInstalledStatus(game.packageName),
+                            onInstallClick = { onInstallClick(game) }
                         )
                     }
                 }

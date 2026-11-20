@@ -5,6 +5,7 @@ import com.example.data.apk.ApkParserService
 import com.example.data.auth.AuthRepository
 import com.example.data.download.ApkDownloadService
 import com.example.data.preferences.UserPreferencesRepository
+import com.example.data.repository.AdminRepository
 import com.example.data.repository.DeveloperPublishRepository
 import com.example.data.repository.MarketplaceRepository
 import com.example.data.repository.UserInteractionRepository
@@ -33,7 +34,8 @@ class AppContainer(app: Application) {
     val authRepository by lazy { AuthRepository(firestore, Firebase.auth) }
     val marketplaceRepository by lazy { MarketplaceRepository(firestore) }
     val interactionRepository by lazy { UserInteractionRepository(firestore, Firebase.auth) }
-    val developerPublishRepository by lazy { DeveloperPublishRepository(firestore, Firebase.auth) }
+    val developerPublishRepository by lazy { DeveloperPublishRepository(firestore, Firebase.auth, app) }
+    val adminRepository by lazy { AdminRepository(firestore, Firebase.auth) }
 }
 
 class AppStoreApplication : Application() {

@@ -34,4 +34,13 @@
     <string name="downloading">Downloading</string>
     <string name="pause">Pause</string>
     <string name="resume">Resume</string>
+    <string name="admin_control_center">Admin Control Center</string>
+    <string name="open_app">Open</string>
+    <string name="install_apk">Install APK</string>
+    <string name="waiting_download">Waiting…</string>
+    <string name="verifying">Verifying…</string>
+    <string name="tab_for_you">For you</string>
+    <string name="tab_top_charts">Top charts</string>
+    <string name="tab_new_releases">New</string>
+    <string name="tab_picks">Editor\'s picks</string>
 </resources>

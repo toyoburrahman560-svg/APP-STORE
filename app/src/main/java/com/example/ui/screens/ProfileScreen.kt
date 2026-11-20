@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bookmark
@@ -82,6 +83,7 @@ fun ProfileScreen(
     downloadHistory: List<DownloadRecord>,
     unreadNotifications: Int,
     myReviews: List<AppReview>,
+    isAdmin: Boolean = false,
     authLoading: Boolean,
     authError: String?,
     onGoogleSignIn: () -> Unit,
@@ -94,6 +96,7 @@ fun ProfileScreen(
     onOpenApp: (String) -> Unit,
     onOpenMyApps: () -> Unit,
     onOpenDashboard: () -> Unit,
+    onOpenAdminPanel: () -> Unit = {},
     onOpenWishlistLibrary: () -> Unit,
     onOpenNotifications: () -> Unit
 ) {
@@ -176,6 +179,27 @@ fun ProfileScreen(
                                 StatusChip(status = userProfile?.accountStatus ?: "active")
                             }
                         }
+                    }
+                }
+            }
+
+            if (isAdmin) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_control_center_card"),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        ProfileNavRow(
+                            icon = Icons.Default.AdminPanelSettings,
+                            title = stringResource(R.string.admin_control_center),
+                            subtitle = "Approve apps, copy APK links, seed categories & manage users",
+                            onClick = onOpenAdminPanel
+                        )
                     }
                 }
             }

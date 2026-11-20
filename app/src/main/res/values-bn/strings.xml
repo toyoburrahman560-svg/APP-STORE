@@ -34,4 +34,13 @@
     <string name="downloading">ডাউনলোড হচ্ছে</string>
     <string name="pause">বিরতি</string>
     <string name="resume">পুনরায় শুরু করুন</string>
+    <string name="admin_control_center">অ্যাডমিন কন্ট্রোল সেন্টার</string>
+    <string name="open_app">খুলুন</string>
+    <string name="install_apk">APK ইনস্টল</string>
+    <string name="waiting_download">অপেক্ষা করছে…</string>
+    <string name="verifying">যাচাই হচ্ছে…</string>
+    <string name="tab_for_you">আপনার জন্য</string>
+    <string name="tab_top_charts">টপ চার্ট</string>
+    <string name="tab_new_releases">নতুন</string>
+    <string name="tab_picks">বাছাইকৃত</string>
 </resources>

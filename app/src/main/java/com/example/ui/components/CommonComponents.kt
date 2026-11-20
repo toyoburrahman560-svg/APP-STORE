@@ -65,10 +65,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.R
+import com.example.data.download.ActiveDownloadState
+import com.example.data.download.InstalledPackageStatus
 import com.example.data.model.AppListing
+import com.example.data.model.DownloadPhase
 import com.example.ui.theme.AmberStar
 import com.example.ui.theme.EmeraldTertiary
 import com.google.firebase.Timestamp
@@ -89,7 +97,7 @@ fun AppStoreBrandHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
@@ -98,6 +106,9 @@ fun AppStoreBrandHeader(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -105,21 +116,25 @@ fun AppStoreBrandHeader(
                     painter = painterResource(id = R.drawable.img_app_store_logo),
                     contentDescription = "APP STORE Logo",
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
                         .clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "APP STORE",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = stringResource(R.string.tagline),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -230,12 +245,15 @@ fun FeaturedHeroBanner(
     featuredApp: AppListing?,
     onAppClick: (String) -> Unit,
     onPublishClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    downloadState: ActiveDownloadState? = null,
+    installedStatus: InstalledPackageStatus = InstalledPackageStatus(false),
+    onInstallClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .height(204.dp)
             .clickable {
                 if (featuredApp != null) onAppClick(featuredApp.appId) else onPublishClick()
             }
@@ -256,9 +274,9 @@ fun FeaturedHeroBanner(
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
-                                Color(0xD9071022),
-                                Color(0x880B1830),
-                                Color(0x330B1830)
+                                Color(0xE0071022),
+                                Color(0x990B1830),
+                                Color(0x4D0B1830)
                             )
                         )
                     )
@@ -266,11 +284,11 @@ fun FeaturedHeroBanner(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp),
+                    .padding(18.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f),
                     shape = RoundedCornerShape(50)
                 ) {
                     Text(
@@ -284,7 +302,7 @@ fun FeaturedHeroBanner(
                 if (featuredApp != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         AppIconBox(iconUrl = featuredApp.iconUrl, appName = featuredApp.appName, size = 60.dp)
                         Column(modifier = Modifier.weight(1f)) {
@@ -308,12 +326,30 @@ fun FeaturedHeroBanner(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 RatingPill(rating = featuredApp.averageRating, lightText = true)
+                                if (featuredApp.apkSizeBytes > 0L) {
+                                    Text(
+                                        text = formatBytes(featuredApp.apkSizeBytes),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.9f)
+                                    )
+                                }
                                 Text(
                                     text = "${formatCompactCount(featuredApp.downloadCount)} downloads",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.9f)
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
+                        }
+                        if (onInstallClick != null) {
+                            AppInstallButton(
+                                app = featuredApp,
+                                downloadState = downloadState,
+                                installedStatus = installedStatus,
+                                onClick = onInstallClick,
+                                compact = true
+                            )
                         }
                     }
                 } else {
@@ -374,11 +410,14 @@ fun AppIconBox(
 fun AppHorizontalCard(
     app: AppListing,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    downloadState: ActiveDownloadState? = null,
+    installedStatus: InstalledPackageStatus = InstalledPackageStatus(false),
+    onInstallClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
-            .width(156.dp)
+            .width(164.dp)
             .clickable(onClick = onClick)
             .testTag("app_card_${app.appId}"),
         shape = RoundedCornerShape(18.dp),
@@ -389,11 +428,12 @@ fun AppHorizontalCard(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            AppIconBox(iconUrl = app.iconUrl, appName = app.appName, size = 64.dp)
+            AppIconBox(iconUrl = app.iconUrl, appName = app.appName, size = 68.dp)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = app.appName,
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -419,9 +459,19 @@ fun AppHorizontalCard(
             ) {
                 RatingPill(rating = app.averageRating)
                 Text(
-                    text = formatCompactCount(app.downloadCount),
+                    text = if (app.apkSizeBytes > 0L) formatBytes(app.apkSizeBytes) else formatCompactCount(app.downloadCount),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (onInstallClick != null) {
+                AppInstallButton(
+                    app = app,
+                    downloadState = downloadState,
+                    installedStatus = installedStatus,
+                    onClick = onInstallClick,
+                    compact = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -433,7 +483,10 @@ fun AppListRowCard(
     app: AppListing,
     rank: Int? = null,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    downloadState: ActiveDownloadState? = null,
+    installedStatus: InstalledPackageStatus = InstalledPackageStatus(false),
+    onInstallClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -447,7 +500,7 @@ fun AppListRowCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -455,6 +508,7 @@ fun AppListRowCard(
                 Text(
                     text = "$rank",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.width(22.dp),
                     textAlign = TextAlign.Center
@@ -468,6 +522,7 @@ fun AppListRowCard(
                 Text(
                     text = app.appName,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -480,9 +535,16 @@ fun AppListRowCard(
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     RatingPill(rating = app.averageRating)
+                    if (app.apkSizeBytes > 0L) {
+                        Text(
+                            text = formatBytes(app.apkSizeBytes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
@@ -490,7 +552,7 @@ fun AppListRowCard(
                         Icon(
                             imageVector = Icons.Default.CloudDownload,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(13.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
@@ -499,21 +561,184 @@ fun AppListRowCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (app.apkSizeBytes > 0L) {
-                        Text(
-                            text = formatBytes(app.apkSizeBytes),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Open details",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
+            if (onInstallClick != null) {
+                AppInstallButton(
+                    app = app,
+                    downloadState = downloadState,
+                    installedStatus = installedStatus,
+                    onClick = onInstallClick,
+                    compact = true
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "Open details",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AppInstallButton(
+    app: AppListing,
+    downloadState: ActiveDownloadState?,
+    installedStatus: InstalledPackageStatus,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
+) {
+    val updateAvailable = installedStatus.isInstalled && installedStatus.installedVersionCode < app.versionCode
+    val phase = downloadState?.phase
+    val contentPadding = PaddingValues(
+        horizontal = if (compact) 14.dp else 20.dp,
+        vertical = 6.dp
+    )
+    val buttonModifier = modifier
+        .heightIn(min = 36.dp)
+        .defaultMinSize(minWidth = if (compact) 82.dp else 96.dp)
+        .testTag("install_button_${app.appId}")
+
+    when {
+        phase == DownloadPhase.DOWNLOADING -> {
+            FilledTonalButton(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "${downloadState.progressPercent}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        phase == DownloadPhase.QUEUED || phase == DownloadPhase.VERIFYING -> {
+            FilledTonalButton(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = if (phase == DownloadPhase.VERIFYING) stringResource(R.string.verifying)
+                    else stringResource(R.string.waiting_download),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1
+                )
+            }
+        }
+
+        phase == DownloadPhase.PAUSED -> {
+            FilledTonalButton(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = stringResource(R.string.resume),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        phase == DownloadPhase.FAILED -> {
+            Button(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.retry),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        phase == DownloadPhase.READY_TO_INSTALL -> {
+            Button(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = stringResource(R.string.install),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        installedStatus.isInstalled && !updateAvailable -> {
+            FilledTonalButton(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = stringResource(R.string.open_app),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        updateAvailable -> {
+            Button(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = stringResource(R.string.update),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
+        }
+
+        else -> {
+            Button(
+                onClick = onClick,
+                modifier = buttonModifier,
+                shape = CircleShape,
+                contentPadding = contentPadding
+            ) {
+                Text(
+                    text = stringResource(R.string.install),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

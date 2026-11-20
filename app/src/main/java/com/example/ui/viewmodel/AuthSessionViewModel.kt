@@ -14,6 +14,7 @@ import com.example.data.model.UserProfile
 import com.example.data.model.WishlistEntry
 import com.example.data.preferences.UserPreferencesRepository
 import com.example.data.preferences.UserSettingsState
+import com.example.data.repository.AdminRepository
 import com.example.data.repository.UserInteractionRepository
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,7 +33,8 @@ import kotlinx.coroutines.launch
 class AuthSessionViewModel(
     private val authRepository: AuthRepository,
     private val interactionRepository: UserInteractionRepository,
-    private val preferencesRepository: UserPreferencesRepository
+    private val preferencesRepository: UserPreferencesRepository,
+    private val adminRepository: AdminRepository? = null
 ) : ViewModel() {
 
     val currentUser: StateFlow<FirebaseUser?> = authRepository.authStateFlow()
@@ -40,6 +43,13 @@ class AuthSessionViewModel(
             started = SharingStarted.Eagerly,
             initialValue = authRepository.currentUser()
         )
+
+    val isAdmin: StateFlow<Boolean> = currentUser
+        .flatMapLatest { user ->
+            if (user == null || adminRepository == null) flowOf(false)
+            else flow { emit(adminRepository.verifyAdminAccess(user)) }.catch { emit(false) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), false)
 
     val settings: StateFlow<UserSettingsState> = preferencesRepository.settingsFlow
         .stateIn(

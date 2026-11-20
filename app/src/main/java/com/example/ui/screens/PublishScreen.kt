@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -87,6 +88,7 @@ fun PublishScreen(
     parsedApk: ParsedApkMetadata?,
     parsingApk: Boolean,
     submitting: Boolean,
+    uploadProgress: Float? = null,
     actionMessage: String?,
     authLoading: Boolean,
     authError: String?,
@@ -127,6 +129,7 @@ fun PublishScreen(
     var showWizard by remember { mutableStateOf(false) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         LazyColumn(
@@ -247,6 +250,7 @@ fun PublishScreen(
                             parsedApk = parsedApk,
                             parsingApk = parsingApk,
                             submitting = submitting,
+                            uploadProgress = uploadProgress,
                             onInspectApk = onInspectApk,
                             onSubmit = { draft ->
                                 onSubmitPublish(draft) {
@@ -318,6 +322,7 @@ private fun PublishAppWizard(
     parsedApk: ParsedApkMetadata?,
     parsingApk: Boolean,
     submitting: Boolean,
+    uploadProgress: Float?,
     onInspectApk: (Uri) -> Unit,
     onSubmit: (PublishSubmissionDraft) -> Unit,
     onCancel: () -> Unit
@@ -482,7 +487,7 @@ private fun PublishAppWizard(
                     OutlinedTextField(
                         value = apkExternalUrl,
                         onValueChange = { apkExternalUrl = it },
-                        label = { Text("HTTPS APK Release URL (optional if using Firebase Storage staging)") },
+                        label = { Text("Direct HTTPS APK URL (optional if uploading APK file)") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
@@ -581,6 +586,24 @@ private fun PublishAppWizard(
                             Text("Status on Submit: PENDING ADMIN REVIEW (never auto-published)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
+                    if (submitting) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (uploadProgress != null) {
+                                Text(
+                                    "Uploading APK ${(uploadProgress * 100).toInt()}%…",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                LinearProgressIndicator(
+                                    progress = { uploadProgress.coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                Text("Submitting release for review…", style = MaterialTheme.typography.labelMedium)
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
                 }
             }
 
@@ -588,7 +611,10 @@ private fun PublishAppWizard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                OutlinedButton(onClick = { if (step == 1) onCancel() else step -= 1 }) {
+                OutlinedButton(
+                    onClick = { if (step == 1) onCancel() else step -= 1 },
+                    enabled = !submitting
+                ) {
                     Text(if (step == 1) "Cancel" else "Back")
                 }
 
@@ -634,7 +660,10 @@ private fun PublishAppWizard(
                                     contentDescription = contentDesc,
                                     dataCollectionDeclared = dataCollection,
                                     copyrightDeclared = copyrightDeclared,
-                                    agreementAccepted = agreementAccepted
+                                    agreementAccepted = agreementAccepted,
+                                    iconUri = iconUri,
+                                    featureGraphicUri = featureUri,
+                                    screenshotUris = screenshotUris.toList()
                                 )
                             )
                         },

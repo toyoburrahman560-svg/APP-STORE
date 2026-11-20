@@ -1,21 +1,27 @@
 package com.example.ui.navigation
 
+import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Build
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
@@ -28,18 +34,24 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,9 +76,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.AppStoreApplication
 import com.example.R
+import com.example.data.model.AppListing
 import com.example.data.model.LanguagePreference
 import com.example.data.model.ThemePreference
 import com.example.data.model.UiState
+import com.example.ui.screens.AdminPanelScreen
 import com.example.ui.screens.AppDetailScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CategoriesScreen
@@ -82,6 +96,7 @@ import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.WishlistLibraryScreen
 import com.example.ui.theme.AppStoreTheme
+import com.example.ui.viewmodel.AdminViewModel
 import com.example.ui.viewmodel.AppDetailViewModel
 import com.example.ui.viewmodel.AuthSessionViewModel
 import com.example.ui.viewmodel.DeveloperViewModel
@@ -98,6 +113,7 @@ object AppRoutes {
     const val MY_DOWNLOADS = "my_downloads"
     const val MY_APPS = "my_apps"
     const val DEV_DASHBOARD = "developer_dashboard"
+    const val ADMIN_PANEL = "admin_panel"
     const val WISHLIST_LIBRARY = "wishlist_library"
     const val NOTIFICATIONS = "notifications"
 
@@ -129,7 +145,8 @@ fun AppStoreRoot() {
                 AuthSessionViewModel(
                     app.container.authRepository,
                     app.container.interactionRepository,
-                    app.container.preferencesRepository
+                    app.container.preferencesRepository,
+                    app.container.adminRepository
                 )
             }
         }
@@ -162,6 +179,7 @@ fun AppStoreRoot() {
 
     val settings by authSessionVm.settings.collectAsStateWithLifecycle()
     val currentUser by authSessionVm.currentUser.collectAsStateWithLifecycle()
+    val isAdmin by authSessionVm.isAdmin.collectAsStateWithLifecycle()
     val userProfile by authSessionVm.userProfile.collectAsStateWithLifecycle()
     val developerProfile by authSessionVm.developerProfile.collectAsStateWithLifecycle()
     val wishlist by authSessionVm.wishlist.collectAsStateWithLifecycle()
@@ -180,8 +198,25 @@ fun AppStoreRoot() {
     val sortOrder by marketplaceVm.sortOrder.collectAsStateWithLifecycle()
     val filteredSearchResults by marketplaceVm.filteredSearchResults.collectAsStateWithLifecycle()
     val activeDownloadCount by downloadsVm.activeDownloadCount.collectAsStateWithLifecycle()
+    val downloadsMap by downloadsVm.downloadsMap.collectAsStateWithLifecycle()
     val activeDownloadItems by downloadsVm.sortedDownloads.collectAsStateWithLifecycle()
     val downloadsFeedback by downloadsVm.feedbackMessage.collectAsStateWithLifecycle()
+
+    var showInstallPermissionDialog by remember { mutableStateOf(false) }
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
+    val triggerCatalogInstall: (AppListing) -> Unit = { appListing ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        downloadsVm.installOrDownloadFromCatalog(appListing) {
+            showInstallPermissionDialog = true
+        }
+    }
 
     val darkTheme = when (settings.themePreference) {
         ThemePreference.DARK -> true
@@ -257,11 +292,21 @@ fun AppStoreRoot() {
 
                 composable(AppRoutes.MAIN) {
                     val uid = currentUser?.uid
+                    val mainSnackbarHostState = remember { SnackbarHostState() }
+                    LaunchedEffect(downloadsFeedback) {
+                        val msg = downloadsFeedback
+                        if (!msg.isNullOrBlank()) {
+                            mainSnackbarHostState.showSnackbar(msg)
+                            downloadsVm.clearFeedback()
+                        }
+                    }
+
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                         val isExpanded = maxWidth >= 600.dp
 
                         Scaffold(
-                            contentWindowInsets = WindowInsets.navigationBars,
+                            contentWindowInsets = WindowInsets.safeDrawing,
+                            snackbarHost = { SnackbarHost(mainSnackbarHostState) },
                             bottomBar = {
                                 if (!isExpanded) {
                                     NavigationBar {
@@ -288,6 +333,7 @@ fun AppStoreRoot() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(innerPadding)
+                                    .consumeWindowInsets(innerPadding)
                             ) {
                                 if (isExpanded) {
                                     NavigationRail {
@@ -334,7 +380,10 @@ fun AppStoreRoot() {
                                                 onSeeAllCategory = { catId ->
                                                     marketplaceVm.selectCategory(catId)
                                                     selectedTab = MainTab.CATEGORIES
-                                                }
+                                                },
+                                                downloadsMap = downloadsMap,
+                                                getInstalledStatus = { pkg -> downloadsVm.getInstalledStatus(pkg) },
+                                                onInstallClick = triggerCatalogInstall
                                             )
 
                                             MainTab.GAMES -> GamesScreen(
@@ -351,7 +400,10 @@ fun AppStoreRoot() {
                                                     else navController.navigate(AppRoutes.NOTIFICATIONS)
                                                 },
                                                 onAvatarClick = { selectedTab = MainTab.PROFILE },
-                                                onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) }
+                                                onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) },
+                                                downloadsMap = downloadsMap,
+                                                getInstalledStatus = { pkg -> downloadsVm.getInstalledStatus(pkg) },
+                                                onInstallClick = triggerCatalogInstall
                                             )
 
                                             MainTab.CATEGORIES -> CategoriesScreen(
@@ -372,7 +424,10 @@ fun AppStoreRoot() {
                                                     else navController.navigate(AppRoutes.NOTIFICATIONS)
                                                 },
                                                 onAvatarClick = { selectedTab = MainTab.PROFILE },
-                                                onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) }
+                                                onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) },
+                                                downloadsMap = downloadsMap,
+                                                getInstalledStatus = { pkg -> downloadsVm.getInstalledStatus(pkg) },
+                                                onInstallClick = triggerCatalogInstall
                                             )
 
                                             MainTab.PUBLISH -> {
@@ -416,6 +471,7 @@ fun AppStoreRoot() {
                                                         val parsedApk by devVm.parsedApk.collectAsStateWithLifecycle()
                                                         val parsingApk by devVm.parsingApk.collectAsStateWithLifecycle()
                                                         val submitting by devVm.submitting.collectAsStateWithLifecycle()
+                                                        val uploadProgress by devVm.uploadProgress.collectAsStateWithLifecycle()
                                                         val actionMsg by devVm.actionMessage.collectAsStateWithLifecycle()
 
                                                         PublishScreen(
@@ -428,6 +484,7 @@ fun AppStoreRoot() {
                                                             parsedApk = parsedApk,
                                                             parsingApk = parsingApk,
                                                             submitting = submitting,
+                                                            uploadProgress = uploadProgress,
                                                             actionMessage = actionMsg,
                                                             authLoading = authLoading,
                                                             authError = authError,
@@ -455,6 +512,7 @@ fun AppStoreRoot() {
                                                 downloadHistory = downloadHistory,
                                                 unreadNotifications = unreadNotifications,
                                                 myReviews = myReviews,
+                                                isAdmin = isAdmin,
                                                 authLoading = authLoading,
                                                 authError = authError,
                                                 onGoogleSignIn = { authSessionVm.signInWithGoogle(context) },
@@ -482,6 +540,7 @@ fun AppStoreRoot() {
                                                 onOpenApp = { appId -> navController.navigate(AppRoutes.appDetail(appId)) },
                                                 onOpenMyApps = { navController.navigate(AppRoutes.MY_APPS) },
                                                 onOpenDashboard = { navController.navigate(AppRoutes.DEV_DASHBOARD) },
+                                                onOpenAdminPanel = { navController.navigate(AppRoutes.ADMIN_PANEL) },
                                                 onOpenWishlistLibrary = { navController.navigate(AppRoutes.WISHLIST_LIBRARY) },
                                                 onOpenNotifications = { navController.navigate(AppRoutes.NOTIFICATIONS) }
                                             )
@@ -509,7 +568,12 @@ fun AppStoreRoot() {
                         onSortChange = { marketplaceVm.setSortOrder(it) },
                         onClearHistory = { marketplaceVm.clearSearchHistory() },
                         onBack = { navController.popBackStack() },
-                        onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) }
+                        onAppClick = { appId -> navController.navigate(AppRoutes.appDetail(appId)) },
+                        downloadsMap = downloadsMap,
+                        getInstalledStatus = { pkg -> downloadsVm.getInstalledStatus(pkg) },
+                        onInstallClick = triggerCatalogInstall,
+                        feedbackMessage = downloadsFeedback,
+                        onClearFeedback = { downloadsVm.clearFeedback() }
                     )
                 }
 
@@ -706,6 +770,95 @@ fun AppStoreRoot() {
                         onBack = { navController.popBackStack() }
                     )
                 }
+
+                composable(AppRoutes.ADMIN_PANEL) {
+                    val uid = currentUser?.uid
+                    if (uid == null || !isAdmin) {
+                        LaunchedEffect(uid, isAdmin) { navController.popBackStack() }
+                    } else {
+                        key(uid) {
+                            val adminVm: AdminViewModel = viewModel(
+                                key = "admin_$uid",
+                                factory = viewModelFactory {
+                                    initializer {
+                                        val app = checkNotNull(this[APPLICATION_KEY]) as AppStoreApplication
+                                        AdminViewModel(
+                                            app.container.adminRepository,
+                                            app.container.apkParserService
+                                        )
+                                    }
+                                }
+                            )
+                            val uiState by adminVm.uiState.collectAsStateWithLifecycle()
+                            val selectedSection by adminVm.selectedSection.collectAsStateWithLifecycle()
+                            val reviewFilter by adminVm.reviewFilter.collectAsStateWithLifecycle()
+                            val resolvedLinks by adminVm.resolvedLinks.collectAsStateWithLifecycle()
+                            val busy by adminVm.busy.collectAsStateWithLifecycle()
+                            val feedback by adminVm.feedback.collectAsStateWithLifecycle()
+                            val parsedApk by adminVm.parsedApk.collectAsStateWithLifecycle()
+                            val parsingApk by adminVm.parsingApk.collectAsStateWithLifecycle()
+
+                            AdminPanelScreen(
+                                uiState = uiState,
+                                selectedSection = selectedSection,
+                                reviewFilter = reviewFilter,
+                                resolvedLinks = resolvedLinks,
+                                busy = busy,
+                                feedbackMessage = feedback,
+                                parsedApk = parsedApk,
+                                parsingApk = parsingApk,
+                                onInspectApk = { uri -> adminVm.inspectApkForAdmin(uri) },
+                                onClearParsedApk = { adminVm.clearParsedApk() },
+                                onSetApkUrl = { app, ver, url -> adminVm.setVersionApkUrl(app, ver, url) },
+                                onUploadApkForApp = { app, ver -> adminVm.uploadApkForApp(app, ver) },
+                                onClearFeedback = { adminVm.clearFeedback() },
+                                onRefresh = { adminVm.refresh() },
+                                onSelectSection = { adminVm.selectSection(it) },
+                                onSelectReviewFilter = { adminVm.selectReviewFilter(it) },
+                                onApproveApp = { app, ver, sub -> adminVm.approveApp(app, ver, sub) },
+                                onRejectApp = { app, ver, sub, reason -> adminVm.rejectApp(app, ver, sub, reason) },
+                                onSetAppStatus = { id, st -> adminVm.setAppStatus(id, st) },
+                                onToggleFeatured = { adminVm.toggleFeatured(it) },
+                                onToggleEditorsChoice = { adminVm.toggleEditorsChoice(it) },
+                                onGenerateApkLink = { app, ver -> adminVm.generateApkLink(app, ver) },
+                                onSeedDefaultCategories = { adminVm.seedDefaultCategories() },
+                                onAddCategory = { n, nb, g, o -> adminVm.addCategory(n, nb, g, o) },
+                                onToggleCategory = { id, en -> adminVm.toggleCategory(id, en) },
+                                onDeleteCategory = { id -> adminVm.deleteCategory(id) },
+                                onSetUserStatus = { id, st -> adminVm.setUserStatus(id, st) },
+                                onSetDeveloperStatus = { id, st -> adminVm.setDeveloperStatus(id, st) },
+                                onResolveReport = { id, st -> adminVm.resolveReport(id, st) },
+                                onRemoveReview = { id -> adminVm.removeReview(id) },
+                                onSendAnnouncement = { t, b, target -> adminVm.sendAnnouncement(t, b, target) },
+                                onSaveSettings = { n, e, m, maint -> adminVm.saveSettings(n, e, m, maint) },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showInstallPermissionDialog) {
+                AlertDialog(
+                    onDismissRequest = { showInstallPermissionDialog = false },
+                    title = { Text("Allow App Installations") },
+                    text = {
+                        Text("To install APKs directly from APP STORE, allow \"Install unknown apps\" in Android settings.")
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            showInstallPermissionDialog = false
+                            context.startActivity(downloadsVm.installSettingsIntent())
+                        }) {
+                            Text("Open Settings")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showInstallPermissionDialog = false }) {
+                            Text("Later")
+                        }
+                    }
+                )
             }
         }
     }
